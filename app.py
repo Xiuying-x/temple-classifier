@@ -12,15 +12,13 @@ import requests
 # Настройки страницы
 st.set_page_config(page_title="Архитектурный классификатор", layout="centered")
 st.title("🏛️ Интеллектуальный классификатор культовой архитектуры")
+st.write("Загрузите фотографию фасада здания, и нейросеть ConvNeXt-V2 определит его конфессиональную принадлежность.")
 
 # === НАСТРОЙКА СКАЧИВАНИЯ ВЕСОВ ИЗ ОБЛАКА ===
 MODEL_PATH = "temple_classifier_best.pth"
-
-# ⚠️ ВСТАВЬ СЮДА СВОЮ ССЫЛКУ ИЗ ГУГЛ ДИСКА МЕЖДУ КАВЫЧКАМИ:
 GOOGLE_DRIVE_URL = "https://drive.google.com/file/d/1k-KEiXw-7ceV7FOpjL5Ow9VW1-Gd2_xp/view?usp=sharing"
 
 def extract_gdrive_id(url):
-    # Функция для извлечения ID файла из ссылки Google Диска
     if "id=" in url:
         return url.split("id=")[1].split("&")[0]
     elif "file/d/" in url:
@@ -29,37 +27,30 @@ def extract_gdrive_id(url):
 
 @st.cache_resource
 def download_weights_from_gdrive(url, output):
-    if os.path.exists(output):
+    # Если файл уже скачан и его размер нормальный (не пара килобайт текста ошибки), пропускаем
+    if os.path.exists(output) and os.path.getsize(output) > 100000000:
         return
-    with st.spinner("Загрузка тяжелых весов модели из облака (это происходит ОДИН РАЗ при первом запуске)..."):
+        
+    with st.spinner("Загрузка тяжелых весов модели из облака (это происходит ОДИН РАЗ)..."):
         file_id = extract_gdrive_id(url)
-        download_url = f"https://docs.google.com/uc?export=download&id={file_id}"
+        # Принудительное подтверждение скачивания большого файла без вирусов
+        download_url = "https://docs.google.com/uc?export=download&confirm=t"
         
         session = requests.Session()
-        response = session.get(download_url, stream=True)
+        response = session.get(download_url, params={'id': file_id}, stream=True)
         
-        # Обход предупреждения Google о проверке на вирусы больших файлов
-        token = None
-        for key, value in response.cookies.items():
-            if key.startswith('download_warning'):
-                token = value
-                break
-        if token:
-            download_url = f"https://docs.google.com/uc?export=download&confirm={token}&id={file_id}"
-            response = session.get(download_url, stream=True)
-            
         with open(output, "wb") as f:
-            for chunk in response.iter_content(chunk_size=32768):
+            for chunk in response.iter_content(chunk_size=1024*1024):  # Качаем блоками по 1 МБ
                 if chunk:
                     f.write(chunk)
 
-# Запускаем скачивание весов на удаленный сервер
+# Запускаем правильное скачивание весов
 try:
     download_weights_from_gdrive(GOOGLE_DRIVE_URL, MODEL_PATH)
 except Exception as e:
     st.error(f"Ошибка скачивания весов: {e}")
 
-# === ДАЛЬШЕ ИДЕТ НАШ СТАНДАРТНЫЙ КОД МОДЕЛИ ===
+# === КОД МОДЕЛИ ===
 IMAGE_SIZE = 224
 CLASSES = [
     "Античный храм", 
@@ -77,6 +68,7 @@ def load_model():
     model = AutoModelForImageClassification.from_pretrained(
         "facebook/convnextv2-large-1k-224", num_labels=8, ignore_mismatched_sizes=True
     )
+    # Отключаем строгую проверку безопасности для самописных весов
     model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu'), weights_only=False))
     model.eval()
     return model
