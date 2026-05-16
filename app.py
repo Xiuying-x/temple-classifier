@@ -27,25 +27,39 @@ def extract_gdrive_id(url):
 
 @st.cache_resource
 def download_weights_from_gdrive(url, output):
-    # Если файл существует, но он подозрительно маленький (меньше 100 МБ) — это ошибка. Удаляем его!
     if os.path.exists(output) and os.path.getsize(output) < 100000000:
         os.remove(output)
         
-    # Если файла нет (или мы его только что удалили как битый), запускаем скачивание
     if not os.path.exists(output):
-        with st.spinner("Загрузка тяжелых весов модели из Google Диска (это займет около 3-5 минут)..."):
+        with st.spinner("Загрузка весов модели из Google Диска..."):
             file_id = extract_gdrive_id(url)
-            # Прямая ссылка, которая заставляет Google пропустить страницу предупреждения о вирусах
-            download_url = f"https://docs.google.com/uc?export=download&confirm=t&id={file_id}"
+            # Альтернативный и самый пробивной URL для скачивания напрямую
+            download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
             
             session = requests.Session()
             response = session.get(download_url, stream=True)
             
+            # Проверяем, не подсунул ли Google страницу подтверждения
+            token = None
+            for key, value in response.cookies.items():
+                if key.startswith('download_warning'):
+                    token = value
+                    break
+            if token:
+                download_url = f"https://drive.google.com/uc?export=download&confirm={token}&id={file_id}"
+                response = session.get(download_url, stream=True)
+            
+            print("=== НАЧАЛО СКАЧИВАНИЯ ФАЙЛА ===")
+            downloaded = 0
             with open(output, "wb") as f:
-                for chunk in response.iter_content(chunk_size=1024*1024): # Качаем блоками по 1 МБ
+                for chunk in response.iter_content(chunk_size=1024*1024): 
                     if chunk:
                         f.write(chunk)
-
+                        f.flush()
+                        downloaded += len(chunk)
+                        # Выводим прогресс прямо в черную консоль Manage app!
+                        print(f"Скачано: {downloaded / (1024*1024):.1f} МБ")
+            print("=== СКАЧИВАНИЕ УСПЕШНО ЗАВЕРШЕНО ===")
 # Запускаем скачивание весов
 try:
     download_weights_from_gdrive(GOOGLE_DRIVE_URL, MODEL_PATH)
