@@ -5,3 +5,5 @@ albumentations
 Pillow
 numpy
 requests
+torchvision
+scikit-learn
