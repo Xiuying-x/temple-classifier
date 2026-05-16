@@ -34,12 +34,18 @@ def load_model():
     return model_obj
 
 # === АВТОМАТИЧЕСКОЕ СКАЧИВАНИЕ С ИНДИКАТОРОМ ===
-if not os.path.exists(MODEL_PATH):
+if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
+    # Если файла нет ИЛИ он весит подозрительно мало (значит, скачался как текстовая ошибка HTML)
     st.warning("⚠️ Файл весов модели (749 МБ) отсутствует на сервере.")
     
     if st.button("🚀 Скачать веса модели напрямую на сервер"):
+        # Принудительно стираем старый поврежденный микро-файл перед скачиванием
+        if os.path.exists(MODEL_PATH):
+            os.remove(MODEL_PATH)
+            
         file_id = extract_gdrive_id(GDRIVE_URL)
-        download_url = f"https://drive.google.com/uc?export=download&confirm=t&id={file_id}"
+        # Бронебойный URL через docs.google.com, который пробивает предупреждение о размере
+        download_url = f"https://docs.google.com/uc?export=download&confirm=t&id={file_id}"
         
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -48,33 +54,34 @@ if not os.path.exists(MODEL_PATH):
             session = requests.Session()
             response = session.get(download_url, stream=True)
             
-            # Проверка на подтверждение больших файлов от Google
+            # Проверяем, не выкатил ли Google динамический токен подтверждения
             token = None
             for key, value in response.cookies.items():
                 if key.startswith('download_warning'):
                     token = value
                     break
             if token:
-                download_url = f"https://drive.google.com/uc?export=download&confirm={token}&id={file_id}"
+                download_url = f"https://docs.google.com/uc?export=download&confirm={token}&id={file_id}"
                 response = session.get(download_url, stream=True)
             
-            # Общий размер файла (~749 МБ)
+            # Примерный размер файла в байтах (~749 МБ)
             total_length = 785431000  
             downloaded = 0
             
             with open(MODEL_PATH, "wb") as f:
-                for chunk in response.iter_content(chunk_size=4*1024*1024): # Качаем крупными кусками по 4МБ
+                # Качаем крупными чанками по 4 МБ, чтобы Streamlit не вис по памяти
+                for chunk in response.iter_content(chunk_size=4*1024*1024): 
                     if chunk:
                         f.write(chunk)
                         f.flush()
                         downloaded += len(chunk)
                         
-                        # Вычисляем процент и обновляем полосу прямо на экране!
+                        # Вычисляем прогресс и обновляем интерфейс в реальном времени
                         percent = min(int((downloaded / total_length) * 100), 100)
                         progress_bar.progress(percent)
                         status_text.text(f"Загружено: {downloaded / (1024*1024):.1f} из 749.0 МБ ({percent}%)")
             
-            st.success("🎉 Веса успешно скачаны!")
+            st.success("🎉 Настоящие веса успешно скачаны и сохранены!")
             st.rerun()
             
         except Exception as e:
@@ -83,12 +90,13 @@ if not os.path.exists(MODEL_PATH):
                 os.remove(MODEL_PATH)
 
 else:
-    # Если файл уже на месте
+    # Если настоящий файл весов на месте — запускаем нейросеть
     try:
         model = load_model()
         st.success("✅ Нейросеть ConvNeXt-V2 успешно активирована и готова к работе!")
     except Exception as e:
         st.error(f"Ошибка инициализации весов: {e}")
+        st.info("Попробуйте перезапустить приложение через Re-boot app в панели Manage app.")
         model = None
 
     if model is not None:
