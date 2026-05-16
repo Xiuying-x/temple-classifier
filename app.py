@@ -80,7 +80,7 @@ def load_model():
             os.remove(MODEL_PATH)
         
         # Скачивание напрямую в файловую систему
-        torch.hub.download_url_to_file(RELEASE_URL, MODEL_PATH, progress=False)
+        torch.hub.download_url_to_file(GOOGLE_DRIVE_URL, MODEL_PATH, progress=False)
 
     # Инициализируем архитектуру
     model_obj = AutoModelForImageClassification.from_pretrained(
