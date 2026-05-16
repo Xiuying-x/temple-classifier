@@ -1,71 +1,20 @@
 import streamlit as st
 import torch
-import torch.nn as nn
 from PIL import Image
 import numpy as np
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from transformers import AutoModelForImageClassification
 import os
-import requests
 
-# Настройки страницы
+# Настройки интерфейса
 st.set_page_config(page_title="Архитектурный классификатор", layout="centered")
 st.title("🏛️ Интеллектуальный классификатор культовой архитектуры")
 st.write("Загрузите фотографию фасада здания, и нейросеть ConvNeXt-V2 определит его конфессиональную принадлежность.")
 
-# === НАСТРОЙКА СКАЧИВАНИЯ ВЕСОВ ИЗ GOOGLE DRIVE ===
-MODEL_PATH = "temple_weights_gdrive_final.pth"
-GOOGLE_DRIVE_URL = "https://drive.google.com/file/d/1k-KEiXw-7ceV7FOpjL5Ow9VW1-Gd2_xp/view?usp=sharing"
+# Локальное имя файла весов в репозитории
+MODEL_PATH = "temple_classifier_best.pth"
 
-def extract_gdrive_id(url):
-    if "id=" in url:
-        return url.split("id=")[1].split("&")[0]
-    elif "file/d/" in url:
-        return url.split("file/d/")[1].split("/")[0]
-    return url
-
-def download_weights_from_gdrive(url, output):
-    if os.path.exists(output) and os.path.getsize(output) < 100000000:
-        os.remove(output)
-        
-    if not os.path.exists(output):
-        with st.spinner("Загрузка весов модели из Google Диска..."):
-            file_id = extract_gdrive_id(url)
-            # Альтернативный и самый пробивной URL для скачивания напрямую
-            download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-            
-            session = requests.Session()
-            response = session.get(download_url, stream=True)
-            
-            # Проверяем, не подсунул ли Google страницу подтверждения
-            token = None
-            for key, value in response.cookies.items():
-                if key.startswith('download_warning'):
-                    token = value
-                    break
-            if token:
-                download_url = f"https://drive.google.com/uc?export=download&confirm={token}&id={file_id}"
-                response = session.get(download_url, stream=True)
-            
-            print("=== НАЧАЛО СКАЧИВАНИЯ ФАЙЛА ===")
-            downloaded = 0
-            with open(output, "wb") as f:
-                for chunk in response.iter_content(chunk_size=1024*1024): 
-                    if chunk:
-                        f.write(chunk)
-                        f.flush()
-                        downloaded += len(chunk)
-                        # Выводим прогресс прямо в черную консоль Manage app!
-                        print(f"Скачано: {downloaded / (1024*1024):.1f} МБ")
-            print("=== СКАЧИВАНИЕ УСПЕШНО ЗАВЕРШЕНО ===")
-# Запускаем скачивание весов
-try:
-    download_weights_from_gdrive(GOOGLE_DRIVE_URL, MODEL_PATH)
-except Exception as e:
-    st.error(f"Ошибка скачивания весов: {e}")
-
-# === КОД МОДЕЛИ ===
 IMAGE_SIZE = 224
 CLASSES = [
     "Античный храм", 
@@ -80,40 +29,43 @@ CLASSES = [
 
 @st.cache_resource
 def load_model():
+    # Создаем архитектуру
     model_obj = AutoModelForImageClassification.from_pretrained(
         "facebook/convnextv2-large-1k-224", num_labels=8, ignore_mismatched_sizes=True
     )
-    # weights_only=False отключает строгую безопасную проверку PyTorch 2.6 для кастомных весов
+    # Загружаем веса из локального файла
     model_obj.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu'), weights_only=False))
     model_obj.eval()
     return model_obj
 
-# Безопасная инициализация модели
-model = None
-if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 100000000:
+# Проверяем, лежит ли файл весов в папке с проектом
+if not os.path.exists(MODEL_PATH):
+    st.error(f"❌ Файл весов `{MODEL_PATH}` не найден в репозитории!")
+    st.info("Пожалуйста, загрузите файл весов (749 МБ) в свой репозиторий на GitHub.")
+else:
+    # Если файл на месте, активируем модель
     try:
         model = load_model()
+        st.success("✅ Модель успешно загружена и готова к работе!")
     except Exception as e:
-        st.error(f"Ошибка инициализации структуры весов модели: {e}")
-else:
-    st.info("Ожидание завершения скачивания файла весов...")
+        st.error(f"Ошибка при инициализации весов: {e}")
+        model = None
 
-transform = A.Compose([
-    A.LongestMaxSize(max_size=IMAGE_SIZE),
-    A.PadIfNeeded(min_height=IMAGE_SIZE, min_width=IMAGE_SIZE, border_mode=0, fill=(255, 255, 255)),
-    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    ToTensorV2()
-])
+    # Настройка трансформации изображений
+    transform = A.Compose([
+        A.LongestMaxSize(max_size=IMAGE_SIZE),
+        A.PadIfNeeded(min_height=IMAGE_SIZE, min_width=IMAGE_SIZE, border_mode=0, fill=(255, 255, 255)),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2()
+    ])
 
-uploaded_file = st.file_uploader("Перетащите сюда фотографию храма...", type=["jpg", "jpeg", "png"])
+    # Форма загрузки фотографии пользователем
+    uploaded_file = st.file_uploader("Перетащите сюда фотографию храма...", type=["jpg", "jpeg", "png"])
 
-if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="Загруженный объект", use_container_width=True)
-    
-    if model is None:
-        st.error("Критическая ошибка: Файл весов поврежден или еще не скачался полностью.")
-    else:
+    if uploaded_file is not None and model is not None:
+        image = Image.open(uploaded_file).convert("RGB")
+        st.image(image, caption="Загруженный объект", use_container_width=True)
+        
         with st.spinner("Нейросеть извлекает архитектурные дескрипторы..."):
             img_np = np.array(image)
             augmented = transform(image=img_np)
