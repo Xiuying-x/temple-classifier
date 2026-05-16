@@ -15,7 +15,7 @@ st.title("🏛️ Интеллектуальный классификатор к
 st.write("Загрузите фотографию фасада здания, и нейросеть ConvNeXt-V2 определит его конфессиональную принадлежность.")
 
 # === НАСТРОЙКА СКАЧИВАНИЯ ВЕСОВ ИЗ ОБЛАКА ===
-MODEL_PATH = "temple_classifier_best.pth"
+MODEL_PATH = "temple_classifier_best_v2.pth"
 GOOGLE_DRIVE_URL = "https://drive.google.com/file/d/1k-KEiXw-7ceV7FOpjL5Ow9VW1-Gd2_xp/view?usp=sharing"
 
 def extract_gdrive_id(url):
