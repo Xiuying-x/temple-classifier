@@ -77,7 +77,7 @@ def load_model():
     model = AutoModelForImageClassification.from_pretrained(
         "facebook/convnextv2-large-1k-224", num_labels=8, ignore_mismatched_sizes=True
     )
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu'), weights_only=False))
     model.eval()
     return model
 
