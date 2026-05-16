@@ -74,12 +74,23 @@ CLASSES = [
 
 @st.cache_resource
 def load_model():
-    model = AutoModelForImageClassification.from_pretrained(
+    # Если файла нет или он весит мало (скачался как текст HTML), удаляем его и качаем заново
+    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
+        if os.path.exists(MODEL_PATH):
+            os.remove(MODEL_PATH)
+        
+        # Скачивание напрямую в файловую систему
+        torch.hub.download_url_to_file(RELEASE_URL, MODEL_PATH, progress=False)
+
+    # Инициализируем архитектуру
+    model_obj = AutoModelForImageClassification.from_pretrained(
         "facebook/convnextv2-large-1k-224", num_labels=8, ignore_mismatched_sizes=True
     )
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu')))
-    model.eval()
-    return model
+    
+    # ДОБАВИЛИ КЛЮЧ weights_only=False, ЧТОБЫ ВЫКЛЮЧИТЬ ОШИБКУ PYTORCH:
+    model_obj.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu'), weights_only=False))
+    model_obj.eval()
+    return model_obj
 
 try:
     model = load_model()
