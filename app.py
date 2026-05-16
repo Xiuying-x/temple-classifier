@@ -6,6 +6,8 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from transformers import AutoModelForImageClassification
 import os
+import requests
+import re
 
 st.set_page_config(page_title="Архитектурный классификатор", layout="centered")
 st.title("🏛️ Интеллектуальный классификатор культовой архитектуры")
@@ -14,6 +16,13 @@ MODEL_PATH = "temple_classifier_best.pth"
 IMAGE_SIZE = 224
 CLASSES = ["Античный храм", "Буддийский храм / Пагода", "Католический собор", 
            "Индуистский храм", "Мечеть", "Православный храм", "Протестантская церковь", "Синагога"]
+
+# Ссылка на твой Google Диск с весами
+GDRIVE_URL = "https://drive.google.com/file/d/1v3OAtV88fK7z4mGzly4tU6RzWco62r93/view?usp=sharing"
+
+def extract_gdrive_id(url):
+    match = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
+    return match.group(1) if match else url
 
 @st.cache_resource
 def load_model():
@@ -24,23 +33,57 @@ def load_model():
     model_obj.eval()
     return model_obj
 
-# === ПРОВЕРКА НАЛИЧИЯ МОДЕЛИ В ПАМЯТИ СЕРВЕРА ===
+# === АВТОМАТИЧЕСКОЕ СКАЧИВАНИЕ С ИНДИКАТОРОМ ===
 if not os.path.exists(MODEL_PATH):
-    st.warning("⚠️ Файл весов модели не найден на сервере.")
-    st.write("Пожалуйста, загрузите файл `temple_classifier_best.pth` (749 МБ) с вашего компьютера, чтобы инициализировать нейросеть:")
+    st.warning("⚠️ Файл весов модели (749 МБ) отсутствует на сервере.")
     
-    # Окошко для ручной загрузки весов
-    weights_file = st.file_uploader("Перетащите сюда файл temple_classifier_best.pth", type=["pth"])
-    
-    if weights_file is not None:
-        with st.spinner("Сохраняем веса в память сервера... Это займет около минуты."):
+    if st.button("🚀 Скачать веса модели напрямую на сервер"):
+        file_id = extract_gdrive_id(GDRIVE_URL)
+        download_url = f"https://drive.google.com/uc?export=download&confirm=t&id={file_id}"
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
+            session = requests.Session()
+            response = session.get(download_url, stream=True)
+            
+            # Проверка на подтверждение больших файлов от Google
+            token = None
+            for key, value in response.cookies.items():
+                if key.startswith('download_warning'):
+                    token = value
+                    break
+            if token:
+                download_url = f"https://drive.google.com/uc?export=download&confirm={token}&id={file_id}"
+                response = session.get(download_url, stream=True)
+            
+            # Общий размер файла (~749 МБ)
+            total_length = 785431000  
+            downloaded = 0
+            
             with open(MODEL_PATH, "wb") as f:
-                f.write(weights_file.getbuffer())
-        st.success("Файл весов успешно сохранен!")
-        st.rerun() # Перезапускаем сайт, чтобы он увидел файл
+                for chunk in response.iter_content(chunk_size=4*1024*1024): # Качаем крупными кусками по 4МБ
+                    if chunk:
+                        f.write(chunk)
+                        f.flush()
+                        downloaded += len(chunk)
+                        
+                        # Вычисляем процент и обновляем полосу прямо на экране!
+                        percent = min(int((downloaded / total_length) * 100), 100)
+                        progress_bar.progress(percent)
+                        status_text.text(f"Загружено: {downloaded / (1024*1024):.1f} из 749.0 МБ ({percent}%)")
+            
+            st.success("🎉 Веса успешно скачаны!")
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Ошибка при скачивании: {e}")
+            if os.path.exists(MODEL_PATH):
+                os.remove(MODEL_PATH)
 
 else:
-    # Если файл уже на месте (или только что загружен)
+    # Если файл уже на месте
     try:
         model = load_model()
         st.success("✅ Нейросеть ConvNeXt-V2 успешно активирована и готова к работе!")
@@ -57,7 +100,7 @@ else:
             ToTensorV2()
         ])
 
-        uploaded_file = st.file_uploader("Шаг 2: Загрузите фотографию храма для классификации...", type=["jpg", "jpeg", "png"])
+        uploaded_file = st.file_uploader("Загрузите фотографию храма для классификации...", type=["jpg", "jpeg", "png"])
 
         if uploaded_file is not None:
             image = Image.open(uploaded_file).convert("RGB")
