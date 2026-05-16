@@ -25,7 +25,6 @@ def extract_gdrive_id(url):
         return url.split("file/d/")[1].split("/")[0]
     return url
 
-@st.cache_resource
 def download_weights_from_gdrive(url, output):
     if os.path.exists(output) and os.path.getsize(output) < 100000000:
         os.remove(output)
