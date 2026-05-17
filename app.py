@@ -19,39 +19,8 @@ MODEL_PATH = "temple_classifier_best.pth"
 # ⚠️ ВСТАВЬ СЮДА СВОЮ ССЫЛКУ ИЗ ГУГЛ ДИСКА МЕЖДУ КАВЫЧКАМИ:
 GOOGLE_DRIVE_URL = "https://github.com/Xiuying-x/temple-classifier/releases/download/v1.0.0/temple_classifier_best.pth"
 
-def extract_gdrive_id(url):
-    # Функция для извлечения ID файла из ссылки Google Диска
-    if "id=" in url:
-        return url.split("id=")[1].split("&")[0]
-    elif "file/d/" in url:
-        return url.split("file/d/")[1].split("/")[0]
-    return url
-
 @st.cache_resource
-def download_weights_from_gdrive(url, output):
-    if os.path.exists(output):
-        return
-    with st.spinner("Загрузка тяжелых весов модели из облака (это происходит ОДИН РАЗ при первом запуске)..."):
-        file_id = extract_gdrive_id(url)
-        download_url = f"https://docs.google.com/uc?export=download&id={file_id}"
-        
-        session = requests.Session()
-        response = session.get(download_url, stream=True)
-        
-        # Обход предупреждения Google о проверке на вирусы больших файлов
-        token = None
-        for key, value in response.cookies.items():
-            if key.startswith('download_warning'):
-                token = value
-                break
-        if token:
-            download_url = f"https://docs.google.com/uc?export=download&confirm={token}&id={file_id}"
-            response = session.get(download_url, stream=True)
-            
-        with open(output, "wb") as f:
-            for chunk in response.iter_content(chunk_size=32768):
-                if chunk:
-                    f.write(chunk)
+torch.hub.download_url_to_file( GITHUB_RELEASE_URL, MODEL_PATH, progress=True)
 
 # Запускаем скачивание весов на удаленный сервер
 try:
