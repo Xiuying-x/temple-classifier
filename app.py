@@ -17,7 +17,7 @@ st.title("🏛️ Интеллектуальный классификатор к
 MODEL_PATH = "temple_classifier_best.pth"
 
 # ⚠️ ВСТАВЬ СЮДА СВОЮ ССЫЛКУ ИЗ ГУГЛ ДИСКА МЕЖДУ КАВЫЧКАМИ:
-GITHUB_RELEASE_UR = "https://github.com/Xiuying-x/temple-classifier/releases/download/v1.0.0/temple_classifier_best.pth"
+GITHUB_RELEASE_URL = "https://github.com/Xiuying-x/temple-classifier/releases/download/v1.0.0/temple_classifier_best.pth"
 
 @st.cache_resource
 torch.hub.download_url_to_file(GITHUB_RELEASE_URL, MODEL_PATH, progress=True)
