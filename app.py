@@ -44,7 +44,6 @@ def load_model():
 try:
     with st.spinner("⏳ Активация нейросети... При первом запуске идет скачивание весов. Пожалуйста, подождите."):
         model = load_model()
-    st.success("✅ Нейросеть успешно активирована и готова!")
 except Exception as e:
     st.error(f"Ошибка инициализации модели: {e}")
     model = None
