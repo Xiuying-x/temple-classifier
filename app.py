@@ -17,10 +17,10 @@ st.title("🏛️ Интеллектуальный классификатор к
 MODEL_PATH = "temple_classifier_best.pth"
 
 # ⚠️ ВСТАВЬ СЮДА СВОЮ ССЫЛКУ ИЗ ГУГЛ ДИСКА МЕЖДУ КАВЫЧКАМИ:
-GOOGLE_DRIVE_URL = "https://github.com/Xiuying-x/temple-classifier/releases/download/v1.0.0/temple_classifier_best.pth"
+GITHUB_RELEASE_UR = "https://github.com/Xiuying-x/temple-classifier/releases/download/v1.0.0/temple_classifier_best.pth"
 
 @st.cache_resource
-torch.hub.download_url_to_file( GITHUB_RELEASE_URL, MODEL_PATH, progress=True)
+torch.hub.download_url_to_file(GITHUB_RELEASE_URL, MODEL_PATH, progress=True)
 
 # Запускаем скачивание весов на удаленный сервер
 try:
@@ -49,7 +49,7 @@ def load_model():
             os.remove(MODEL_PATH)
         
         # Скачивание напрямую в файловую систему
-        torch.hub.download_url_to_file(GOOGLE_DRIVE_URL, MODEL_PATH, progress=False)
+        torch.hub.download_url_to_file(GITHUB_RELEASE_UR, MODEL_PATH, progress=False)
 
     # Инициализируем архитектуру
     model_obj = AutoModelForImageClassification.from_pretrained(
